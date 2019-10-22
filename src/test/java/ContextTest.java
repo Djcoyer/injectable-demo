@@ -1,7 +1,9 @@
+import annotations.Inject;
 import annotations.Injectable;
 import model.Test2;
 import model.Test3;
 import model.exception.NoSuitableConstructorException;
+import model.exception.UnsupportedClassException;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
@@ -20,15 +22,16 @@ public class ContextTest {
     @Before
     public void initMocks() {
         this.reflections = Mockito.mock(Reflections.class);
-    }
-
-    public void init() {
         context = new Context();
         try {
             Field field = context.getClass().getDeclaredField("reflections");
             field.setAccessible(true);
             field.set(context, this.reflections);
-        } catch(Exception e) { }
+        } catch(IllegalAccessException e) {
+            e.printStackTrace();
+        } catch (NoSuchFieldException e) {
+            e.printStackTrace();
+        }
     }
 
     @Test
@@ -38,9 +41,12 @@ public class ContextTest {
         classes.add(Test2.class);
         classes.add(Test3.class);
         when(reflections.getTypesAnnotatedWith(Injectable.class)).thenReturn(classes);
-        init();
 
+        //act
+        context.registerClasses();
         Test2 instance = context.get(Test2.class);
+
+
         assertNotNull(instance);
     }
 
@@ -51,26 +57,66 @@ public class ContextTest {
         classes.add(Test2.class);
         classes.add(Test3.class);
         when(reflections.getTypesAnnotatedWith(Injectable.class)).thenReturn(classes);
-        init();
+
+        //act
+        context.registerClasses();
+
         model.Test instance = context.get(model.Test.class);
         assertNotNull(instance);
+    }
+
+    @Test(expected = UnsupportedClassException.class)
+    public void registerClasses_throwsUnsupportedClass_noInjectableAnnotation() {
+        HashSet<Class<?>> classes = new HashSet<>();
+        classes.add(BadInjectClass.class);
+        when(reflections.getTypesAnnotatedWith(Injectable.class)).thenReturn(classes);
+
+        //act
+        context.registerClasses();
+
     }
 
     @Test(expected = NoSuitableConstructorException.class)
     public void registerClasses_throwsNoSuitableConstructor_noEmptyConstructorExists() {
         HashSet<Class<?>> classes = new HashSet<>();
-        classes.add(BadInjectClass.class);
+        classes.add(InjectWithoutDefaultConstructorClass.class);
 
         when(reflections.getTypesAnnotatedWith(Injectable.class)).thenReturn(classes);
-        init();
+        context.registerClasses();
+    }
+
+    @Test(expected = UnsupportedClassException.class)
+    public void registerClasses_throwsUnsupportedClass_badParameter() {
+        HashSet<Class<?>> classes = new HashSet<>();
+        classes.add(InjectWithBadParameter.class);
+
+        when(reflections.getTypesAnnotatedWith(Injectable.class)).thenReturn(classes);
+        context.registerClasses();
     }
 }
 
 
 class BadInjectClass {
 
+}
 
-    public BadInjectClass(String message) {
+@Injectable
+class InjectWithBadParameter {
+
+    private BadInjectClass badInjectClass;
+
+    @Inject
+    public InjectWithBadParameter(BadInjectClass badInjectClass) {
+        this.badInjectClass = badInjectClass;
+    }
+}
+
+@Injectable
+class InjectWithoutDefaultConstructorClass {
+    @Inject
+    BadInjectClass badInjectClass;
+
+    public InjectWithoutDefaultConstructorClass(String message) {
 
     }
 }

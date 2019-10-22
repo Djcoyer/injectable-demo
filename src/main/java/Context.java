@@ -6,7 +6,6 @@ import org.reflections.Reflections;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
-import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Parameter;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -21,7 +20,6 @@ public class Context {
         this.registeredConstructors = new HashSet<>();
         this.instances = new HashSet<>();
         reflections = new Reflections("");
-        this.registerClasses();
     }
 
     public void registerClasses() {
@@ -37,21 +35,21 @@ public class Context {
 
         List<Class<?>> autowiredDependencies;
 
+        //Find constructor that has an @Inject annotation
         Constructor constructor = Arrays.stream(classToRegister.getConstructors()).filter(p -> p.getAnnotation(Inject.class) != null).findFirst().orElse(null);
         if(constructor != null) {
             autowiredDependencies = Arrays.stream(constructor.getParameters()).map(Parameter::getType).collect(Collectors.toList());
         } else {
-            constructor = Arrays.stream(classToRegister.getConstructors()).filter(p -> p.getParameterCount() == 0).findFirst().orElse(null);
-            if(constructor == null) {
-                throw new NoSuitableConstructorException();
-                //Handle error since no default constructor exists
-            }
+            //Find the default, zero-parameter constructor for the class
+            constructor = Arrays.stream(classToRegister.getConstructors()).filter(p -> p.getParameterCount() == 0).findFirst().orElseThrow(() -> new NoSuitableConstructorException(""));
             autowiredDependencies = Arrays.stream(classToRegister.getDeclaredFields()).filter(p -> p.isAnnotationPresent(Inject.class)).map(Field::getType).collect(Collectors.toList());
         }
 
         if(this.registeredConstructors.contains(constructor))
             return;
 
+
+        //TODO: ADD A WAY TO TRACK WHICH CLASSES ARE IN PROGRESS TO BE RESOLVED
         autowiredDependencies.forEach(p -> {
             if(!this.registeredConstructors.contains(p.getEnclosingConstructor())) {
                 registerClassDependencies(p);
@@ -62,26 +60,19 @@ public class Context {
     }
 
     public <T> T get(Class<T> classType) {
-        try {
-            if(!this.registeredConstructors.contains(classType.getConstructor()))
-                throw new UnsupportedClassException("Class is not registered for injection");
-        } catch (NoSuchMethodException e) {
-            throw new NoSuitableConstructorException("No constructor for class exists.");
-        }
-        Optional<T> typeOptional = (Optional<T>) instances.stream().filter(p -> p.getClass().equals(classType)).findFirst();
-        if(typeOptional.isPresent())
-            return typeOptional.get();
-
+        T type = (T) instances.stream().filter(p -> p.getClass().equals(classType)).findFirst().orElse(null);
+        if(type != null)
+            return type;
 
         Constructor<T> constructor = (Constructor<T>) Arrays.stream(classType.getConstructors())
-                .filter(p -> this.registeredConstructors.stream().anyMatch(s -> s.equals(p))).findFirst().orElse(null);
-        if(constructor == null)
-            return null;
+                .filter(p -> this.registeredConstructors.stream().anyMatch(s -> s.equals(p))).findFirst()
+                .orElseThrow(() -> new UnsupportedClassException("Class is not registered for injection"));
+
         constructor.setAccessible(true);
         T instance;
 
         if(constructor.getParameterCount() > 0) {
-            instance = getInstanceThroughConstructor(constructor, classType);
+            instance = getInstanceThroughConstructor(constructor);
         } else {
             try {
                 instance = getInstanceThroughReflection(constructor, classType);
@@ -97,32 +88,33 @@ public class Context {
 
     }
 
-    private <T> T getInstanceThroughReflection(Constructor<T> classConstructor, Class<T> classType) throws IllegalAccessException, InvocationTargetException, InstantiationException {
-        T instance = classConstructor.newInstance();
-        List<Field> autowiredFields = Arrays.stream(classType.getDeclaredFields())
-                .filter(p -> p.isAnnotationPresent(Inject.class)).collect(Collectors.toList());
-        autowiredFields.forEach(field -> {
+    private <T> T getInstanceThroughReflection(Constructor<T> classConstructor, Class<T> classType)  {
+        T instance;
+        try {
+            instance = classConstructor.newInstance();
+        } catch (Exception e) {
+            e.printStackTrace();
+            throw new NoSuitableConstructorException();
+        }
+
+        Arrays.stream(classType.getDeclaredFields())
+                .filter(p -> p.isAnnotationPresent(Inject.class)).forEach(field -> {
             try {
                 field.setAccessible(true);
                 field.set(instance, get(field.getType()));
             } catch(IllegalAccessException ex) {
-//                        throw new RuntimeException();
-            }
-
-        });
+                throw new UnsupportedClassException("");
+            }});
 
         return instance;
     }
 
-    private <T> T getInstanceThroughConstructor(Constructor<T> classConstructor, Class<T> classType) {
-        List<Object> parameters = new ArrayList<>();
-        for(Parameter parameter: classConstructor.getParameters()) {
-            parameters.add(get(parameter.getType()));
-        }
+    private <T> T getInstanceThroughConstructor(Constructor<T> classConstructor) {
+        List<Object> parameters = Arrays.stream(classConstructor.getParameters()).map(p -> get(p.getType())).collect(Collectors.toList());
         try {
             return classConstructor.newInstance(parameters.toArray());
         } catch(Exception e) {
-            throw new RuntimeException("");
+            throw new NoSuitableConstructorException("");
         }
     }
 }
