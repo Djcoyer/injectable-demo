@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="ContextTest" tests="5" skipped="0" failures="0" errors="0" timestamp="2019-10-22T20:34:08" hostname="MACs-MacBook-Pro.local" time="1.195">
+<testsuite name="ContextTest" tests="5" skipped="0" failures="0" errors="0" timestamp="2019-10-22T20:50:36" hostname="MACs-MacBook-Pro.local" time="0.661">
   <properties/>
-  <testcase name="registerClasses_throwsNoSuitableConstructor_noEmptyConstructorExists" classname="ContextTest" time="1.152"/>
-  <testcase name="registerClasses_throwsUnsupportedClass_badParameter" classname="ContextTest" time="0.012"/>
-  <testcase name="get_returnsClassWithDependencies_classHasFieldInjection" classname="ContextTest" time="0.013"/>
+  <testcase name="registerClasses_throwsNoSuitableConstructor_noEmptyConstructorExists" classname="ContextTest" time="0.612"/>
+  <testcase name="registerClasses_throwsUnsupportedClass_badParameter" classname="ContextTest" time="0.009"/>
+  <testcase name="get_returnsClassWithDependencies_classHasFieldInjection" classname="ContextTest" time="0.018"/>
   <testcase name="registerClasses_throwsUnsupportedClass_noInjectableAnnotation" classname="ContextTest" time="0.007"/>
-  <testcase name="get_returnsClassWithDependencies_classHasConstructorInjection" classname="ContextTest" time="0.008"/>
+  <testcase name="get_returnsClassWithDependencies_classHasConstructorInjection" classname="ContextTest" time="0.014"/>
   <system-out><![CDATA[]]></system-out>
   <system-err><![CDATA[]]></system-err>
 </testsuite>

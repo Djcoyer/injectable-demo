@@ -1,14 +1,15 @@
+import annotations.Blueprint;
+import annotations.Definition;
 import annotations.Inject;
 import annotations.Injectable;
 import model.exception.NoSuitableConstructorException;
 import model.exception.UnsupportedClassException;
 import org.reflections.Reflections;
 
-import java.lang.reflect.Constructor;
-import java.lang.reflect.Field;
-import java.lang.reflect.Parameter;
+import java.lang.reflect.*;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class Context {
     private Set<Constructor<?>> registeredConstructors;
@@ -23,8 +24,22 @@ public class Context {
     }
 
     public void registerClasses() {
-        Set<Class<?>> annotatedClasses = reflections.getTypesAnnotatedWith(Injectable.class);
-        annotatedClasses.forEach(this::registerClassDependencies);
+        Set<Class<?>> injectableClasses = reflections.getTypesAnnotatedWith(Injectable.class);
+        injectableClasses.forEach(this::registerClassDependencies);
+
+        Set<Object> blueprintInstances = reflections.getTypesAnnotatedWith(Blueprint.class).stream().map(p -> {
+            try {
+                return p.getConstructor().newInstance();
+            } catch (Exception e) {
+                throw new RuntimeException();
+            }
+        }).collect(Collectors.toSet());
+        Set<Method> methods = new HashSet<>();
+
+        Map<Object, Set<Method>> methodMap = new HashMap<>();
+
+        blueprintInstances.forEach(c -> methods.addAll(Arrays.stream(c.getClass().getDeclaredMethods()).filter(p -> p.isAnnotationPresent(Definition.class)).collect(Collectors.toList())));
+
     }
 
     private void registerClassDependencies(Class<?> classToRegister) {
@@ -32,17 +47,15 @@ public class Context {
             throw new UnsupportedClassException("Class not registered for injection");
         }
 
-
-        List<Class<?>> autowiredDependencies;
-
+        Stream<Class<?>> stream;
         //Find constructor that has an @Inject annotation
         Constructor constructor = Arrays.stream(classToRegister.getConstructors()).filter(p -> p.getAnnotation(Inject.class) != null).findFirst().orElse(null);
         if(constructor != null) {
-            autowiredDependencies = Arrays.stream(constructor.getParameters()).map(Parameter::getType).collect(Collectors.toList());
+            stream = Arrays.stream(constructor.getParameters()).map(Parameter::getType);
         } else {
             //Find the default, zero-parameter constructor for the class
             constructor = Arrays.stream(classToRegister.getConstructors()).filter(p -> p.getParameterCount() == 0).findFirst().orElseThrow(() -> new NoSuitableConstructorException(""));
-            autowiredDependencies = Arrays.stream(classToRegister.getDeclaredFields()).filter(p -> p.isAnnotationPresent(Inject.class)).map(Field::getType).collect(Collectors.toList());
+            stream = Arrays.stream(classToRegister.getDeclaredFields()).filter(p -> p.isAnnotationPresent(Inject.class)).map(Field::getType);
         }
 
         if(this.registeredConstructors.contains(constructor))
@@ -50,7 +63,7 @@ public class Context {
 
 
         //TODO: ADD A WAY TO TRACK WHICH CLASSES ARE IN PROGRESS TO BE RESOLVED
-        autowiredDependencies.forEach(p -> {
+        stream.forEach(p -> {
             if(!this.registeredConstructors.contains(p.getEnclosingConstructor())) {
                 registerClassDependencies(p);
             }
