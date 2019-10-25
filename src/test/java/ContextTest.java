@@ -121,7 +121,20 @@ public class ContextTest {
 
         assertNotNull(test2);
     }
+
+    @Test(expected = UnsupportedClassException.class)
+    public void get_throwsUnsupportedClass_blueprintClassNotRegistered() {
+        Set<Class<?>> blueprints = new HashSet<>();
+        blueprints.add(WriterConfig.class);
+        when(reflections.getTypesAnnotatedWith(Blueprint.class)).thenReturn(blueprints);
+
+        context.registerClasses();
+
+        BadInjectClass fromDefinition = context.get(BadInjectClass.class);
+    }
 }
+
+
 
 
 class BadInjectClass {

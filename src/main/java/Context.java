@@ -93,23 +93,20 @@ public class Context {
     private <T> T getFromDefinition(Class<T> classType) {
         T instance;
 
-        AtomicReference<Pair<Object, Method>> reference = new AtomicReference<>();
-
-        registeredDefinitions.keySet().forEach(key -> {
-            Set<Method> set = registeredDefinitions.get(key);
-            set.forEach(method -> {
-                if(method.getReturnType().equals(classType)) {
-                    reference.set(new Pair<>(key, method));
-                }
-            });
-        });
-
-        Pair<Object, Method> definitionPair = reference.get();
+        AtomicReference<Method> method = new AtomicReference<>();
+        Object blueprintInstance = registeredDefinitions.keySet().stream().filter(p -> registeredDefinitions.get(p).stream().anyMatch(m -> {
+            boolean methodExists = m.getReturnType().equals(classType);
+            if(methodExists) {
+                method.set(m);
+                return true;
+            }
+            return false;
+        })).findFirst().orElse(null);
 
         try {
-            Method definition = definitionPair.getValue();
+            Method definition = method.get();
             definition.setAccessible(true);
-            instance = (T) definition.invoke(definitionPair.getKey());
+            instance = (T) definition.invoke(blueprintInstance);
         } catch(Exception e) {
             throw new UnsupportedClassException("");
         }
