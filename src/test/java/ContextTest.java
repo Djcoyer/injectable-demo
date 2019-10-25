@@ -1,5 +1,7 @@
+import annotations.Blueprint;
 import annotations.Inject;
 import annotations.Injectable;
+import config.WriterConfig;
 import model.Test2;
 import model.Test3;
 import model.exception.NoSuitableConstructorException;
@@ -8,9 +10,11 @@ import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
 import org.reflections.Reflections;
+import service.WriterService;
 
 import java.lang.reflect.Field;
 import java.util.HashSet;
+import java.util.Set;
 
 import static org.junit.Assert.assertNotNull;
 import static org.mockito.Mockito.when;
@@ -93,7 +97,44 @@ public class ContextTest {
         when(reflections.getTypesAnnotatedWith(Injectable.class)).thenReturn(classes);
         context.registerClasses();
     }
+
+    @Test
+    public void get_returnsInstance_BlueprintDefinition() {
+        HashSet<Class<?>> classes = new HashSet<>();
+        classes.add(model.Test.class);
+        classes.add(Test2.class);
+        classes.add(Test3.class);
+        when(reflections.getTypesAnnotatedWith(Injectable.class)).thenReturn(classes);
+
+
+        Set<Class<?>> blueprints = new HashSet<>();
+        blueprints.add(WriterConfig.class);
+        when(reflections.getTypesAnnotatedWith(Blueprint.class)).thenReturn(blueprints);
+
+        context.registerClasses();
+
+        WriterService fromDefinition = context.get(WriterService.class);
+
+        assertNotNull(fromDefinition);
+
+        Test2 test2 = context.get(Test2.class);
+
+        assertNotNull(test2);
+    }
+
+    @Test(expected = UnsupportedClassException.class)
+    public void get_throwsUnsupportedClass_blueprintClassNotRegistered() {
+        Set<Class<?>> blueprints = new HashSet<>();
+        blueprints.add(WriterConfig.class);
+        when(reflections.getTypesAnnotatedWith(Blueprint.class)).thenReturn(blueprints);
+
+        context.registerClasses();
+
+        BadInjectClass fromDefinition = context.get(BadInjectClass.class);
+    }
 }
+
+
 
 
 class BadInjectClass {
